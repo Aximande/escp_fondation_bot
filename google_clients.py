@@ -4,10 +4,13 @@ import re # Pour extraire l'ID du fichier Drive
 import io # Pour télécharger les fichiers en mémoire
 from typing import Union # <<< AJOUT pour compatibilité Python < 3.10
 import traceback # Pour un meilleur affichage des erreurs
+import json # <<< AJOUT pour parser le JSON du service account localement
+import streamlit as st # <<< AJOUT pour l'accès à st.secrets
 
 from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google.oauth2.credentials import Credentials # Gardé au cas où, mais service_account sera principal
+from google.oauth2 import service_account # <<< AJOUT pour l'authentification par compte de service
+# from google_auth_oauthlib.flow import InstalledAppFlow # Plus nécessaire avec compte de service
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload # Pour le téléchargement Drive
@@ -21,69 +24,65 @@ from email.mime.base import MIMEBase
 from email import encoders
 import mimetypes
 
-# Importer la configuration
-from config import SCOPES, CREDENTIALS_FILE, TOKEN_FILE, GOOGLE_FORM_ID, GOOGLE_SHEET_ID, SENDER_EMAIL
+# Importer la configuration (mise à jour des imports)
+# CREDENTIALS_FILE et TOKEN_FILE ne sont plus utilisés pour l'auth principale
+from config import (
+    SCOPES, 
+    GCP_SERVICE_ACCOUNT_INFO, # Dictionnaire des infos SA si via st.secrets, sinon None
+    LOCAL_GCP_SERVICE_ACCOUNT_FILE_PATH, # Chemin fichier local si GCP_SERVICE_ACCOUNT_INFO est None
+    GOOGLE_FORM_ID, 
+    GOOGLE_SHEET_ID, 
+    SENDER_EMAIL
+)
 
 def get_google_credentials():
-    """Gère le flux d'authentification OAuth 2.0 pour les APIs Google.
+    """Gère l'authentification pour les APIs Google via un compte de service.
 
-    Tente de charger les identifiants depuis TOKEN_FILE.
-    Si invalides ou absents, lance le flux d'autorisation via le navigateur.
-    Sauvegarde les nouveaux identifiants dans TOKEN_FILE.
+    Tente de charger les identifiants depuis st.secrets (via GCP_SERVICE_ACCOUNT_INFO de config.py).
+    Sinon, tente de charger depuis un fichier de clé de compte de service local 
+    (via LOCAL_GCP_SERVICE_ACCOUNT_FILE_PATH de config.py).
 
     Returns:
-        google.oauth2.credentials.Credentials: Les identifiants valides.
+        google.oauth2.service_account.Credentials: Les identifiants valides du compte de service.
     """
     creds = None
-    # Le fichier token.json stocke les jetons d'accès et de rafraîchissement de l'utilisateur.
-    # Il est créé automatiquement lors de la première autorisation.
-    if os.path.exists(TOKEN_FILE):
+    
+    # 1. Essayer avec les informations du compte de service depuis st.secrets (via config.GCP_SERVICE_ACCOUNT_INFO)
+    if GCP_SERVICE_ACCOUNT_INFO and isinstance(GCP_SERVICE_ACCOUNT_INFO, dict):
         try:
-            creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
-            print(f"Identifiants chargés depuis {TOKEN_FILE}")
+            creds = service_account.Credentials.from_service_account_info(
+                GCP_SERVICE_ACCOUNT_INFO, 
+                scopes=SCOPES
+            )
+            print("Identifiants Google (compte de service) chargés avec succès depuis st.secrets.")
         except Exception as e:
-            print(f"Erreur lors du chargement de {TOKEN_FILE}: {e}. Tentative de ré-authentification.")
-            creds = None # Forcer la ré-authentification
+            print(f"Erreur lors du chargement des identifiants de compte de service depuis st.secrets: {e}")
+            creds = None
+    else:
+        print("INFO: Pas d'informations de compte de service trouvées dans st.secrets (via config.GCP_SERVICE_ACCOUNT_INFO).")
 
-    # S'il n'y a pas d'identifiants (valides), laisser l'utilisateur se connecter.
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            print("Les identifiants ont expiré, tentative de rafraîchissement...")
+    # 2. Si échec avec st.secrets, essayer avec le fichier local (via config.LOCAL_GCP_SERVICE_ACCOUNT_FILE_PATH)
+    if not creds:
+        print(f"Tentative de chargement des identifiants depuis le fichier local: {LOCAL_GCP_SERVICE_ACCOUNT_FILE_PATH}")
+        if LOCAL_GCP_SERVICE_ACCOUNT_FILE_PATH and os.path.exists(LOCAL_GCP_SERVICE_ACCOUNT_FILE_PATH):
             try:
-                creds.refresh(Request())
-                print("Identifiants rafraîchis.")
+                creds = service_account.Credentials.from_service_account_file(
+                    LOCAL_GCP_SERVICE_ACCOUNT_FILE_PATH, 
+                    scopes=SCOPES
+                )
+                print(f"Identifiants Google (compte de service) chargés avec succès depuis le fichier local: {LOCAL_GCP_SERVICE_ACCOUNT_FILE_PATH}")
             except Exception as e:
-                print(f"Impossible de rafraîchir les identifiants: {e}")
-                # Si le rafraîchissement échoue, on supprime le token et on relance le flux
-                if os.path.exists(TOKEN_FILE):
-                    os.remove(TOKEN_FILE)
-                print(f"Ancien {TOKEN_FILE} supprimé. Veuillez vous ré-authentifier.")
-                creds = None # Forcer la ré-authentification complète
+                print(f"Erreur lors du chargement des identifiants de compte de service depuis le fichier local {LOCAL_GCP_SERVICE_ACCOUNT_FILE_PATH}: {e}")
+                creds = None
         else:
-            print(f"Aucun identifiant valide trouvé ou {TOKEN_FILE} absent.")
-            print(f"Lancement du flux d'autorisation OAuth 2.0 en utilisant {CREDENTIALS_FILE}...")
-            if not os.path.exists(CREDENTIALS_FILE):
-                raise FileNotFoundError(f"Erreur: Le fichier d'identifiants {CREDENTIALS_FILE} est introuvable. Assurez-vous qu'il est au bon endroit.")
-            try:
-                flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, SCOPES)
-                # Note: port=0 permet de trouver un port libre automatiquement
-                creds = flow.run_local_server(port=0)
-                print("Authentification réussie.")
-            except Exception as e:
-                print(f"Erreur lors du flux d'authentification: {e}")
-                # Potentiellement afficher plus d'aide ici, ex: vérifier l'URI de redirection dans GCP
-                raise # Renvoyer l'erreur pour arrêter le script
-
-        # Sauvegarder les identifiants pour la prochaine exécution
-        try:
-            with open(TOKEN_FILE, 'w') as token:
-                token.write(creds.to_json())
-            print(f"Identifiants sauvegardés dans {TOKEN_FILE}")
-        except Exception as e:
-             print(f"Attention: Impossible de sauvegarder les identifiants dans {TOKEN_FILE}: {e}")
+            print(f"WARN: Fichier de compte de service local non trouvé ou chemin non configuré: {LOCAL_GCP_SERVICE_ACCOUNT_FILE_PATH}")
 
     if not creds:
-         raise RuntimeError("Impossible d'obtenir les identifiants Google.")
+         raise RuntimeError(
+             "Impossible d'obtenir les identifiants Google (compte de service). "
+             "Vérifiez la configuration dans st.secrets (via GCP_SERVICE_ACCOUNT_SECRET_NAME dans config.py) "
+             "ou le chemin du fichier local (LOCAL_GCP_SERVICE_ACCOUNT_FILE_PATH dans config.py)."
+         )
 
     return creds
 
@@ -393,11 +392,12 @@ if __name__ == '__main__':
     creds = None
     try:
         # Rappel: Supprimer token.json si les SCOPES ont changé (ajout de sheets.readonly)
-        if not os.path.exists(TOKEN_FILE):
-             print(f"INFO: {TOKEN_FILE} non trouvé. Une nouvelle autorisation sera demandée.")
-        elif SCOPES != Credentials.from_authorized_user_file(TOKEN_FILE).scopes:
-             print(f"WARN: Les scopes requis ont changé. Suppression de {TOKEN_FILE} pour redemander l'autorisation.")
-             os.remove(TOKEN_FILE)
+        # CETTE PARTIE DEVIENT OBSOLETE AVEC UN COMPTE DE SERVICE
+        # if not os.path.exists(TOKEN_FILE):
+        #      print(f"INFO: {TOKEN_FILE} non trouvé. Une nouvelle autorisation sera demandée.")
+        # elif SCOPES != Credentials.from_authorized_user_file(TOKEN_FILE).scopes:
+        #      print(f"WARN: Les scopes requis ont changé. Suppression de {TOKEN_FILE} pour redemander l'autorisation.")
+        #      os.remove(TOKEN_FILE)
 
         creds = get_google_credentials()
         print("Identifiants obtenus avec succès.")
