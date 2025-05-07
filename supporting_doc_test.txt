@@ -1,0 +1,5 @@
+Facture F001
+Fournisseur: ACME Corp
+Date: 15/03/2025
+Montant: 150.00 EUR
+Description: Achat matériel bureau

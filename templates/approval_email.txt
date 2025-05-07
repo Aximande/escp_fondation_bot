@@ -1,0 +1,14 @@
+Subject: Your request has been approved > Payment in process
+
+Cher/Chère {responsible_name},
+
+Nous vous remercions d'avoir soumis votre rapport d'utilisation des fonds et d'impact pour le projet "{project_name}".
+
+Après examen de vos réponses et des documents justificatifs, nous sommes heureux de confirmer que votre dossier est complet et conforme.
+
+Votre paiement de {remaining_amount}€ est en cours de traitement et sera effectué d'ici la fin de l'année.
+
+Nous apprécions votre diligence et votre engagement envers ce projet.
+
+Cordialement,
+L'équipe de la Fondation ESCP 

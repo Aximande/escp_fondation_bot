@@ -1,0 +1,17 @@
+Subject: Incomplete form – Please resubmit your request
+
+Cher/Chère {responsible_name},
+
+Nous avons reçu votre formulaire pour le projet "{project_name}", merci pour votre implication.
+
+Malheureusement, après examen, nous avons constaté que des informations ou documents essentiels sont manquants ou incorrects, et nous ne pouvons actuellement pas valider votre demande.
+
+Veuillez revoir et corriger les problèmes suivants:
+{missing_elements_list}
+
+Nous vous invitons à soumettre une nouvelle réponse complète via le lien du formulaire initial lorsque vous aurez corrigé ces points.
+
+N'hésitez pas à nous contacter si vous avez besoin d'aide.
+
+Cordialement,
+L'équipe de la Fondation ESCP 

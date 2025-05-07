@@ -1,0 +1,2 @@
+Ceci est le contenu du fichier de log de test.
+Ligne 2.

@@ -1,0 +1,17 @@
+Subject: Request for additional information – Your file is under review
+
+Cher/Chère {responsible_name},
+
+Nous vous remercions d'avoir soumis votre formulaire de justification pour le projet "{project_name}".
+
+Votre dossier est actuellement en cours d'examen, mais nous avons besoin d'informations ou de clarifications supplémentaires pour finaliser l'évaluation.
+
+Voici ce qu'il nous manque actuellement:
+{missing_elements_list}
+
+Merci de nous envoyer les éléments manquants ou les clarifications dès que possible (vous pouvez répondre à cet email ou utiliser le lien du formulaire initial si nécessaire).
+
+Nous finaliserons votre demande dès réception des informations complémentaires.
+
+Cordialement,
+L'équipe de la Fondation ESCP 
