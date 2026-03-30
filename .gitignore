@@ -1,24 +1,25 @@
-# Fichiers de dépendances
-node_modules/
+# Secrets
+.env
+.env.local
+.env.production
+.env.*.local
+credentials.json
+service_account.json
 
-# Environnements virtuels Python
-venv/
-*.pyc
+# GCP / Firebase
+*.pem
+*.key
+*-adminsdk-*.json
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Python
 __pycache__/
+*.pyc
+.venv/
+venv/
 
-# Fichiers système
+# OS
 .DS_Store
-
-# Fichiers de log
-*.log
-
-# Fichiers de build
-dist/
-build/
-
-# Dossiers spécifiques au projet
-analysis_results/
-downloads/
-
-# Fichiers de configuration et clés API
-*.json 
+Thumbs.db
