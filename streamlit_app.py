@@ -13,6 +13,7 @@ import traceback
 import config
 import google_clients
 import main
+from reviewer_auth import require_reviewer
 
 # Configuration de la page Streamlit
 st.set_page_config(
@@ -115,27 +116,6 @@ def initialize_session_state():
         st.session_state.viewing_history_id = None
     if 'analysis_history' not in st.session_state:
         st.session_state.analysis_history = []
-
-def login_section():
-    """Affiche la section de connexion."""
-    st.markdown("<h1 class='main-header'>ESCP Workflow - Authentification</h1>", unsafe_allow_html=True)
-    
-    st.info("Pour utiliser cette application, vous devez vous authentifier avec un compte Google autorisé.")
-    
-    if st.button("Se connecter avec Google", type="primary"):
-        with st.spinner("Connexion en cours..."):
-            try:
-                credentials = google_clients.get_google_credentials()
-                if credentials:
-                    st.session_state.credentials = credentials
-                    st.session_state.authenticated = True
-                    st.success("Authentification réussie!")
-                    time.sleep(1)
-                    st.rerun()
-                else:
-                    st.error("Échec de l'authentification. Veuillez réessayer.")
-            except Exception as e:
-                st.error(f"Erreur lors de l'authentification: {str(e)}")
 
 def load_processed_statuses():
     """Charge les statuts depuis le fichier JSON."""
@@ -545,14 +525,15 @@ def processing_interface():
 # Application principale
 def main_app():
     """Point d'entrée de l'application Streamlit."""
+    # Verify the OIDC identity on every rerun, before data or processing is shown.
+    if not require_reviewer(st, google_clients.get_google_credentials):
+        return
     initialize_session_state()
     
-    if not st.session_state.authenticated:
-        login_section()
-    elif st.session_state.processing:
+    if st.session_state.processing:
         processing_interface()
     else:
         main_interface()
 
 if __name__ == "__main__":
-    main_app() 
+    main_app()
